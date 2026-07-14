@@ -1,0 +1,778 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAHSAI — พยากรณ์อากาศ & คุณภาพอากาศ</title>
+<style>
+/* =========================================================
+   FAHSAI — พยากรณ์อากาศ & คุณภาพอากาศ (single-file build)
+   Design tokens
+   ========================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg-deep:      #fffdf6;
+  --bg-panel:     #ffffff;
+  --bg-panel-2:   #fff6e3;
+  --sky-1:        #4fa8e8;
+  --sky-2:        #34c3d9;
+  --sky-3:        #0891b2;
+  --sun:          #ffb020;
+  --text-primary: #14213d;
+  --text-muted:   #5b6b85;
+  --text-faint:   #94a3b8;
+  --border:       rgba(20,33,61,0.10);
+  --border-soft:  rgba(20,33,61,0.06);
+
+  --aqi-1: #22b573;
+  --aqi-2: #8bc63f;
+  --aqi-3: #f0b429;
+  --aqi-4: #f2894c;
+  --aqi-5: #e14b42;
+
+  --radius-lg: 22px;
+  --radius-md: 14px;
+  --radius-sm: 9px;
+
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --shadow-soft: 0 20px 45px -22px rgba(30,64,120,0.20);
+}
+
+*, *::before, *::after{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+
+body{
+  margin:0;
+  min-height:100vh;
+  background:
+    radial-gradient(1200px 800px at 12% -12%, rgba(79,168,232,0.24), transparent 60%),
+    radial-gradient(1000px 700px at 100% -5%, rgba(255,176,32,0.22), transparent 55%),
+    radial-gradient(900px 600px at 45% 105%, rgba(52,195,217,0.16), transparent 60%),
+    var(--bg-deep);
+  color:var(--text-primary);
+  font-family:var(--font-body);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+a{ color:inherit; text-decoration:none; }
+button{ font-family:inherit; }
+
+:focus-visible{ outline:2px solid var(--sky-3); outline-offset:3px; border-radius:6px; }
+
+/* ---------- Views (single-file routing) ---------- */
+.view{ display:none; }
+.view.active{ display:block; }
+
+/* ---------- Layout shell ---------- */
+.page{ max-width:1080px; margin:0 auto; padding:24px 20px 64px; }
+
+.topbar{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding:6px 2px 28px; }
+
+.brand{ display:flex; align-items:baseline; gap:10px; }
+.brand-mark{ font-family:var(--font-display); font-weight:700; font-size:22px; letter-spacing:0.02em; }
+.brand-mark span{ color:var(--sky-3); }
+.brand-tagline{ font-size:12.5px; color:var(--text-faint); letter-spacing:0.03em; }
+
+.back-btn{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:9px 16px 9px 12px;
+  background:var(--bg-panel-2);
+  border:1px solid var(--border);
+  border-radius:999px;
+  color:var(--text-primary);
+  font-size:14px; font-weight:500; cursor:pointer;
+  transition:background .18s ease, transform .18s ease, border-color .18s ease;
+}
+.back-btn:hover{ background:#ffedc4; border-color:rgba(20,33,61,0.18); transform:translateX(-2px); }
+
+/* ---------- Hero ---------- */
+.hero{
+  position:relative;
+  border-radius:var(--radius-lg);
+  padding:34px 30px 0;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,0.25);
+  box-shadow:var(--shadow-soft);
+  background:linear-gradient(135deg, var(--sky-1) 0%, var(--sky-2) 55%, #8fe3d9 100%);
+  color:#ffffff;
+  --text-primary: #ffffff;
+  --text-muted: rgba(255,255,255,0.85);
+  --text-faint: rgba(255,255,255,0.65);
+  --border: rgba(255,255,255,0.35);
+  --border-soft: rgba(255,255,255,0.2);
+}
+.hero .eyebrow{ color:#ffe9ab; }
+
+.hero-sky{
+  position:absolute; inset:0; z-index:0;
+  background:
+    radial-gradient(480px 320px at 84% 4%, rgba(255,214,110,0.55), transparent 65%),
+    radial-gradient(620px 380px at 0% 100%, rgba(255,255,255,0.2), transparent 60%);
+  opacity:0.95;
+}
+
+.cloud-layer{ position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+.cloud{ position:absolute; opacity:0.5; filter:blur(0.3px); animation:drift linear infinite; }
+.cloud svg{ display:block; width:100%; height:100%; }
+.cloud--a{ width:220px; top:14%; left:-240px; animation-duration:52s; opacity:0.55; }
+.cloud--b{ width:150px; top:34%; left:-200px; animation-duration:70s; animation-delay:-20s; opacity:0.4; }
+.cloud--c{ width:180px; top:6%; left:-220px; animation-duration:86s; animation-delay:-45s; opacity:0.45; }
+
+@keyframes drift{ from{ transform:translateX(0); } to{ transform:translateX(calc(100vw + 300px)); } }
+@media (prefers-reduced-motion: reduce){ .cloud{ animation:none; } }
+
+.hero-top{ position:relative; z-index:1; display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.hero-location{ display:flex; flex-direction:column; gap:6px; }
+.eyebrow{ font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:var(--sky-3); font-weight:600; }
+
+.province-select{
+  appearance:none;
+  background:rgba(255,255,255,0.18);
+  border:1px solid var(--border);
+  color:var(--text-primary);
+  font-family:var(--font-display);
+  font-size:26px; font-weight:600;
+  padding:4px 34px 4px 4px;
+  border-radius:8px;
+  cursor:pointer;
+  background-image:linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% - 3px), calc(100% - 10px) calc(50% - 3px);
+  background-size:6px 6px, 6px 6px;
+  background-repeat:no-repeat;
+}
+.province-select:hover{ background-color:rgba(255,255,255,0.28); }
+
+.updated-at{ font-size:12.5px; color:var(--text-faint); }
+
+.hero-reading{ position:relative; z-index:1; display:flex; align-items:center; gap:22px; padding:22px 0 26px; flex-wrap:wrap; }
+.hero-temp{ font-family:var(--font-mono); font-size:min(19vw, 96px); line-height:1; font-weight:600; letter-spacing:-0.02em; }
+.hero-temp sup{ font-size:0.32em; font-weight:500; vertical-align:super; color:var(--text-muted); }
+
+.hero-condition{ display:flex; align-items:center; gap:12px; }
+.hero-condition-icon{ font-size:44px; line-height:1; }
+.hero-condition-text{ display:flex; flex-direction:column; gap:2px; }
+.hero-condition-text strong{ font-size:17px; font-family:var(--font-display); font-weight:600; }
+.hero-condition-text span{ font-size:13px; color:var(--text-muted); }
+
+.hero-chips{ position:relative; z-index:1; display:flex; gap:10px; flex-wrap:wrap; padding-bottom:24px; }
+.chip{
+  display:flex; align-items:center; gap:7px;
+  background:rgba(255,255,255,0.14);
+  border:1px solid var(--border-soft);
+  padding:8px 13px; border-radius:999px;
+  font-size:13px; color:var(--text-muted);
+}
+.chip b{ color:var(--text-primary); font-family:var(--font-mono); font-weight:500; }
+
+.horizon{
+  position:relative; z-index:1; height:34px; margin:0 -30px;
+  background:linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.14) 100%);
+  border-top:1px solid var(--border-soft);
+}
+
+/* ---------- Card grid (Home) ---------- */
+.card-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:22px; }
+@media (max-width:640px){ .card-grid{ grid-template-columns:1fr; } }
+
+.nav-card{
+  display:block; position:relative;
+  border-radius:var(--radius-md);
+  padding:22px 22px 20px;
+  background:var(--bg-panel);
+  border:1px solid var(--border);
+  box-shadow:0 12px 30px -18px rgba(30,64,120,0.18);
+  transition:transform .2s ease, border-color .2s ease, background .2s ease, box-shadow .2s ease;
+  overflow:hidden;
+  cursor:pointer;
+}
+.nav-card:hover{ transform:translateY(-3px); border-color:rgba(20,33,61,0.14); background:var(--bg-panel-2); }
+.nav-card:hover .nav-card-arrow{ transform:translate(3px,-3px); }
+
+.nav-card-head{ display:flex; align-items:center; justify-content:space-between; }
+.nav-card-icon{
+  width:42px; height:42px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:21px;
+  background:rgba(52,195,217,0.16);
+}
+.nav-card--pm .nav-card-icon{ background:rgba(242,137,76,0.18); }
+.nav-card-arrow{ color:var(--text-faint); font-size:18px; transition:transform .2s ease; }
+
+.nav-card-title{ font-family:var(--font-display); font-size:15px; color:var(--text-muted); margin:16px 0 4px; font-weight:500; }
+.nav-card-value{ font-family:var(--font-mono); font-size:34px; font-weight:600; display:flex; align-items:baseline; gap:8px; }
+.nav-card-value small{ font-family:var(--font-body); font-size:14px; font-weight:500; color:var(--text-muted); }
+.nav-card-foot{ margin-top:10px; font-size:13px; color:var(--text-muted); }
+
+.aqi-dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; position:relative; top:-1px; }
+
+/* ---------- Section headers ---------- */
+.section-head{ display:flex; align-items:baseline; justify-content:space-between; margin:34px 0 14px; }
+.section-head h2{ font-family:var(--font-display); font-size:17px; font-weight:600; margin:0; }
+.section-head span{ font-size:12.5px; color:var(--text-faint); }
+
+/* ---------- Weather detail view ---------- */
+.detail-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
+@media (max-width:720px){ .detail-grid{ grid-template-columns:repeat(2, 1fr); } }
+@media (max-width:460px){ .detail-grid{ grid-template-columns:1fr 1fr; } }
+
+.detail-card{
+  background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:var(--radius-md); padding:18px;
+  box-shadow:0 10px 26px -18px rgba(30,64,120,0.16);
+}
+.detail-card-label{ font-size:12px; color:var(--text-faint); letter-spacing:0.03em; text-transform:uppercase; margin-bottom:10px; }
+.detail-card-value{ font-family:var(--font-mono); font-size:24px; font-weight:600; }
+.detail-card-sub{ font-size:12.5px; color:var(--text-muted); margin-top:4px; }
+
+.hourly-scroll{ display:flex; gap:10px; overflow-x:auto; padding:4px 2px 12px; scrollbar-width:thin; }
+.hourly-scroll::-webkit-scrollbar{ height:6px; }
+.hourly-scroll::-webkit-scrollbar-thumb{ background:var(--border); border-radius:99px; }
+
+.hour-card{
+  flex:0 0 auto; min-width:74px; text-align:center;
+  background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:14px 6px;
+  box-shadow:0 10px 22px -18px rgba(30,64,120,0.14);
+}
+.hour-card .h-time{ font-size:12px; color:var(--text-faint); margin-bottom:8px; }
+.hour-card .h-icon{ font-size:22px; margin-bottom:8px; }
+.hour-card .h-temp{ font-family:var(--font-mono); font-size:15px; font-weight:600; }
+
+.week-list{
+  display:flex; flex-direction:column;
+  border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden;
+  box-shadow:0 12px 28px -20px rgba(30,64,120,0.16);
+}
+.week-row{ display:grid; grid-template-columns:88px 30px 1fr 150px; align-items:center; gap:14px; padding:14px 18px; background:var(--bg-panel); }
+.week-row + .week-row{ border-top:1px solid var(--border-soft); }
+.week-day{ font-size:14px; font-weight:500; }
+.week-day small{ display:block; color:var(--text-faint); font-weight:400; font-size:11.5px; }
+.week-icon{ font-size:19px; text-align:center; }
+.week-cond{ font-size:13px; color:var(--text-muted); }
+.week-range{ display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:13.5px; justify-self:end; width:100%; }
+.week-range .lo{ color:var(--text-faint); width:32px; text-align:right; }
+.week-range .hi{ width:32px; }
+.week-bar{ flex:1; height:4px; border-radius:99px; background:rgba(20,33,61,0.08); position:relative; overflow:hidden; }
+.week-bar i{ position:absolute; top:0; bottom:0; border-radius:99px; background:linear-gradient(90deg, var(--sky-3), var(--sun)); }
+
+@media (max-width:560px){ .week-row{ grid-template-columns:70px 24px 1fr; } .week-range{ display:none; } }
+
+/* ---------- PM2.5 view ---------- */
+.legend{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:22px; }
+.legend-item{
+  display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-muted);
+  background:var(--bg-panel); border:1px solid var(--border); padding:7px 12px; border-radius:999px;
+}
+
+.controls{ display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
+
+.search-box{
+  flex:1; min-width:200px; display:flex; align-items:center; gap:10px;
+  background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:11px 16px; box-shadow:0 10px 24px -20px rgba(30,64,120,0.14);
+}
+.search-box input{ flex:1; background:none; border:none; outline:none; color:var(--text-primary); font-size:14.5px; font-family:var(--font-body); }
+.search-box input::placeholder{ color:var(--text-faint); }
+.search-box svg{ flex:0 0 auto; color:var(--text-faint); }
+
+.sort-btn{
+  display:flex; align-items:center; gap:8px;
+  background:var(--bg-panel); border:1px solid var(--border); color:var(--text-primary);
+  border-radius:var(--radius-sm); padding:11px 16px; font-size:14px; cursor:pointer;
+  transition:background .18s ease;
+}
+.sort-btn:hover{ background:var(--bg-panel-2); }
+.sort-btn svg{ transition:transform .2s ease; }
+.sort-btn.asc svg{ transform:rotate(180deg); }
+
+.result-count{ font-size:12.5px; color:var(--text-faint); margin-bottom:12px; }
+.province-list{ display:flex; flex-direction:column; gap:8px; }
+
+.province-row{
+  display:grid; grid-template-columns:28px 1fr auto 120px; align-items:center; gap:14px;
+  padding:13px 16px; background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-sm);
+  box-shadow:0 8px 20px -18px rgba(30,64,120,0.14);
+}
+.province-rank{ font-family:var(--font-mono); font-size:12px; color:var(--text-faint); }
+.province-name{ font-size:14.5px; font-weight:500; }
+.province-value{ font-family:var(--font-mono); font-size:15px; font-weight:600; text-align:right; }
+.province-value small{ font-family:var(--font-body); font-weight:400; color:var(--text-faint); font-size:11.5px; margin-left:3px; }
+.province-level{ display:flex; align-items:center; justify-content:flex-end; gap:7px; font-size:12.5px; color:var(--text-muted); }
+
+@media (max-width:560px){ .province-row{ grid-template-columns:22px 1fr auto; } .province-level{ display:none; } }
+
+.empty-state{ text-align:center; padding:60px 20px; color:var(--text-muted); }
+.empty-state .e-icon{ font-size:32px; margin-bottom:10px; }
+
+footer.site-foot{ text-align:center; color:var(--text-faint); font-size:12px; margin-top:48px; }
+</style>
+</head>
+<body>
+
+<!-- ============================= HOME ============================= -->
+<div class="view active" id="view-home">
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">FAH<span>SAI</span></div>
+        <div class="brand-tagline">พยากรณ์อากาศ &amp; คุณภาพอากาศ</div>
+      </div>
+    </div>
+
+    <section class="hero" id="hero">
+      <div class="hero-sky"></div>
+      <div class="cloud-layer" aria-hidden="true">
+        <div class="cloud cloud--a"><svg viewBox="0 0 200 90"><path d="M40 65 Q20 65 20 45 Q20 25 45 27 Q50 8 75 12 Q95 4 110 20 Q135 15 140 38 Q160 38 160 55 Q160 68 145 68 Z" fill="#ffffff"/></svg></div>
+        <div class="cloud cloud--b"><svg viewBox="0 0 200 90"><path d="M40 65 Q20 65 20 45 Q20 25 45 27 Q50 8 75 12 Q95 4 110 20 Q135 15 140 38 Q160 38 160 55 Q160 68 145 68 Z" fill="#ffffff"/></svg></div>
+        <div class="cloud cloud--c"><svg viewBox="0 0 200 90"><path d="M40 65 Q20 65 20 45 Q20 25 45 27 Q50 8 75 12 Q95 4 110 20 Q135 15 140 38 Q160 38 160 55 Q160 68 145 68 Z" fill="#ffffff"/></svg></div>
+      </div>
+
+      <div class="hero-top">
+        <div class="hero-location">
+          <span class="eyebrow">ตำแหน่งปัจจุบัน</span>
+          <select id="provinceSelect" class="province-select" aria-label="เลือกจังหวัด"></select>
+        </div>
+        <span class="updated-at" id="homeUpdatedAt">อัปเดตล่าสุด —</span>
+      </div>
+
+      <div class="hero-reading">
+        <div class="hero-temp" id="heroTemp">--</div>
+        <div class="hero-condition">
+          <div class="hero-condition-icon" id="heroCondIcon">—</div>
+          <div class="hero-condition-text">
+            <strong id="heroCondText">กำลังโหลด…</strong>
+            <span id="heroFeels">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-chips">
+        <span class="chip" id="chipHumidity">—</span>
+        <span class="chip" id="chipWind">—</span>
+        <span class="chip" id="chipUv">—</span>
+      </div>
+
+      <div class="horizon"></div>
+    </section>
+
+    <div class="card-grid">
+      <a class="nav-card nav-card--weather" href="#weather" id="weatherLink">
+        <div class="nav-card-head">
+          <div class="nav-card-icon">⛅</div>
+          <div class="nav-card-arrow">↗</div>
+        </div>
+        <div class="nav-card-title">สภาพอากาศวันนี้</div>
+        <div class="nav-card-value" id="weatherCardCond">—</div>
+        <div class="nav-card-foot" id="weatherCardSub">—</div>
+      </a>
+
+      <a class="nav-card nav-card--pm" href="#pm25" id="pmLink">
+        <div class="nav-card-head">
+          <div class="nav-card-icon">🌫️</div>
+          <div class="nav-card-arrow">↗</div>
+        </div>
+        <div class="nav-card-title">คุณภาพอากาศ (PM2.5)</div>
+        <div class="nav-card-value" id="pmCardValue">—</div>
+        <div class="nav-card-foot">
+          <span class="aqi-dot" id="pmCardDot"></span><span id="pmCardLevel">—</span>
+        </div>
+      </a>
+    </div>
+
+    <footer class="site-foot">ข้อมูลจำลองเพื่อการสาธิต · FAHSAI Dashboard</footer>
+  </div>
+</div>
+
+<!-- ============================= WEATHER ============================= -->
+<div class="view" id="view-weather">
+  <div class="page">
+    <div class="topbar">
+      <a class="back-btn" href="#home" data-nav="home">← กลับหน้าแรก</a>
+      <span class="updated-at" id="weatherUpdatedAt">อัปเดตล่าสุด —</span>
+    </div>
+
+    <section class="hero" style="padding-bottom:28px;">
+      <div class="hero-sky"></div>
+      <div class="hero-top">
+        <div class="hero-location">
+          <span class="eyebrow">สภาพอากาศ</span>
+          <div class="brand-mark" id="provinceName" style="font-size:26px;">—</div>
+        </div>
+      </div>
+      <div class="hero-reading">
+        <div class="hero-temp" id="bigTemp">--</div>
+        <div class="hero-condition">
+          <div class="hero-condition-icon" id="bigIcon">—</div>
+          <div class="hero-condition-text">
+            <strong id="bigCond">กำลังโหลด…</strong>
+            <span id="bigFeels">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-head"><h2>รายละเอียดวันนี้</h2></div>
+    <div class="detail-grid" id="detailGrid"></div>
+
+    <div class="section-head">
+      <h2>พยากรณ์รายชั่วโมง</h2>
+      <span>24 ชั่วโมงข้างหน้า</span>
+    </div>
+    <div class="hourly-scroll" id="hourlyScroll"></div>
+
+    <div class="section-head"><h2>พยากรณ์ 7 วัน</h2></div>
+    <div class="week-list" id="weekList"></div>
+
+    <footer class="site-foot">ข้อมูลจำลองเพื่อการสาธิต · FAHSAI Dashboard</footer>
+  </div>
+</div>
+
+<!-- ============================= PM2.5 ============================= -->
+<div class="view" id="view-pm25">
+  <div class="page">
+    <div class="topbar">
+      <a class="back-btn" href="#home" data-nav="home">← กลับหน้าแรก</a>
+    </div>
+
+    <div class="section-head" style="margin-top:0;">
+      <h2>ค่า PM2.5 รายจังหวัดทั่วประเทศ</h2>
+      <span>หน่วย µg/m³</span>
+    </div>
+
+    <div class="legend">
+      <span class="legend-item"><span class="aqi-dot" style="background:var(--aqi-1)"></span>0–25 ดีมาก</span>
+      <span class="legend-item"><span class="aqi-dot" style="background:var(--aqi-2)"></span>26–37 ดี</span>
+      <span class="legend-item"><span class="aqi-dot" style="background:var(--aqi-3)"></span>38–50 ปานกลาง</span>
+      <span class="legend-item"><span class="aqi-dot" style="background:var(--aqi-4)"></span>51–90 เริ่มมีผลกระทบต่อสุขภาพ</span>
+      <span class="legend-item"><span class="aqi-dot" style="background:var(--aqi-5)"></span>91+ มีผลกระทบต่อสุขภาพ</span>
+    </div>
+
+    <div class="controls">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" placeholder="ค้นหาจังหวัด เช่น เชียงใหม่, ภูเก็ต…">
+      </div>
+      <button class="sort-btn" id="sortBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 10l6-6 6 6"/></svg>
+        <span class="sort-label">มาก → น้อย</span>
+      </button>
+    </div>
+
+    <div class="result-count" id="resultCount"></div>
+    <div class="province-list" id="provinceList"></div>
+
+    <footer class="site-foot">ข้อมูลจำลองเพื่อการสาธิต · FAHSAI Dashboard</footer>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   FAHSAI — mock data engine + view renderers (single file)
+   ========================================================= */
+
+const PROVINCES = [
+  "กรุงเทพมหานคร","กระบี่","กาญจนบุรี","กาฬสินธุ์","กำแพงเพชร","ขอนแก่น","จันทบุรี","ฉะเชิงเทรา",
+  "ชลบุรี","ชัยนาท","ชัยภูมิ","ชุมพร","เชียงราย","เชียงใหม่","ตรัง","ตราด","ตาก","นครนายก","นครปฐม",
+  "นครพนม","นครราชสีมา","นครศรีธรรมราช","นครสวรรค์","นนทบุรี","นราธิวาส","น่าน","บึงกาฬ","บุรีรัมย์",
+  "ปทุมธานี","ประจวบคีรีขันธ์","ปราจีนบุรี","ปัตตานี","พระนครศรีอยุธยา","พะเยา","พังงา","พัทลุง",
+  "พิจิตร","พิษณุโลก","เพชรบุรี","เพชรบูรณ์","แพร่","ภูเก็ต","มหาสารคาม","มุกดาหาร","แม่ฮ่องสอน",
+  "ยโสธร","ยะลา","ร้อยเอ็ด","ระนอง","ระยอง","ราชบุรี","ลพบุรี","ลำปาง","ลำพูน","เลย","ศรีสะเกษ",
+  "สกลนคร","สงขลา","สตูล","สมุทรปราการ","สมุทรสงคราม","สมุทรสาคร","สระแก้ว","สระบุรี","สิงห์บุรี",
+  "สุโขทัย","สุพรรณบุรี","สุราษฎร์ธานี","สุรินทร์","หนองคาย","หนองบัวลำภู","อ่างทอง","อำนาจเจริญ",
+  "อุดรธานี","อุตรดิตถ์","อุทัยธานี","อุบลราชธานี"
+];
+
+const QUICK_PROVINCES = ["กรุงเทพมหานคร","เชียงใหม่","ขอนแก่น","ภูเก็ต","นครราชสีมา","ชลบุรี","สงขลา","เชียงราย"];
+
+const CONDITIONS = [
+  { text: "ท้องฟ้าแจ่มใส",     icon: "☀️" },
+  { text: "แดดจัด",             icon: "🌞" },
+  { text: "มีเมฆบางส่วน",       icon: "🌤️" },
+  { text: "เมฆเป็นส่วนมาก",     icon: "⛅" },
+  { text: "มีเมฆมาก",           icon: "🌥️" },
+  { text: "ฝนตกเล็กน้อย",       icon: "🌦️" },
+  { text: "ฝนฟ้าคะนอง",         icon: "⛈️" },
+  { text: "มีหมอกบางในตอนเช้า", icon: "🌫️" }
+];
+
+const NIGHT_ICON = { "☀️":"🌙", "🌞":"🌙", "🌤️":"🌙", "⛅":"☁️", "🌥️":"☁️" };
+const WIND_DIRS = ["เหนือ","ตะวันออกเฉียงเหนือ","ตะวันออก","ตะวันออกเฉียงใต้","ใต้","ตะวันตกเฉียงใต้","ตะวันตก","ตะวันตกเฉียงเหนือ"];
+const WEEKDAYS = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"];
+
+/* ---------- deterministic pseudo-random ---------- */
+function hashStr(str){
+  let h = 0;
+  for (let i = 0; i < str.length; i++){ h = (h << 5) - h + str.charCodeAt(i); h |= 0; }
+  return Math.abs(h);
+}
+function seeded(str, salt = ""){ return (hashStr(str + "::" + salt) % 100000) / 100000; }
+
+/* ---------- PM2.5 ---------- */
+function getPM25Value(province){ return Math.round(8 + seeded(province, "pm25") * 105); }
+
+function getAQICategory(value){
+  if (value <= 25)  return { label: "คุณภาพดีมาก",            color: "var(--aqi-1)" };
+  if (value <= 37)  return { label: "คุณภาพดี",                color: "var(--aqi-2)" };
+  if (value <= 50)  return { label: "ปานกลาง",                 color: "var(--aqi-3)" };
+  if (value <= 90)  return { label: "เริ่มมีผลกระทบต่อสุขภาพ", color: "var(--aqi-4)" };
+  return               { label: "มีผลกระทบต่อสุขภาพ",         color: "var(--aqi-5)" };
+}
+
+/* ---------- Weather ---------- */
+function getBaseWeather(province){
+  const condIdx = Math.floor(seeded(province, "cond") * CONDITIONS.length);
+  return {
+    baseTemp: Math.round(24 + seeded(province, "temp") * 10),
+    condition: CONDITIONS[condIdx],
+    humidity: Math.round(50 + seeded(province, "hum") * 40),
+    windSpeed: Math.round((5 + seeded(province, "wind") * 20) * 10) / 10,
+    windDir: WIND_DIRS[Math.floor(seeded(province, "winddir") * WIND_DIRS.length)],
+    uv: Math.round(1 + seeded(province, "uv") * 10),
+    pressure: Math.round(1005 + seeded(province, "pres") * 15),
+    visibility: Math.round((5 + seeded(province, "vis") * 15) * 10) / 10,
+    feelsOffset: Math.round(seeded(province, "feels") * 4) - 2
+  };
+}
+
+function getHourlyForecast(province){
+  const base = getBaseWeather(province);
+  const now = new Date();
+  const hours = [];
+  for (let i = 0; i < 24; i++){
+    const hour = (now.getHours() + i) % 24;
+    const isNight = hour < 6 || hour >= 19;
+    const swing = Math.sin(((hour - 15) / 24) * Math.PI * 2) * 4.5;
+    const jitter = (seeded(province, "hjit" + i) - 0.5) * 1.6;
+    const temp = Math.round(base.baseTemp + swing + jitter);
+    const icon = isNight ? (NIGHT_ICON[base.condition.icon] || "🌙") : base.condition.icon;
+    hours.push({ hour, temp, icon });
+  }
+  return hours;
+}
+
+function getWeeklyForecast(province){
+  const base = getBaseWeather(province);
+  const now = new Date();
+  const raw = [];
+  let minAll = Infinity, maxAll = -Infinity;
+  for (let i = 0; i < 7; i++){
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+    const drift = (seeded(province, "wk" + i) - 0.5) * 6;
+    const lo = Math.round(base.baseTemp - 4 + drift * 0.5);
+    const hi = Math.round(base.baseTemp + 3 + drift);
+    const condIdx = Math.floor(seeded(province, "wkc" + i) * CONDITIONS.length);
+    let label;
+    if (i === 0) label = "วันนี้";
+    else if (i === 1) label = "พรุ่งนี้";
+    else label = WEEKDAYS[d.getDay()];
+    raw.push({ label, sub: `${d.getDate()}/${d.getMonth() + 1}`, lo, hi, cond: CONDITIONS[condIdx] });
+    minAll = Math.min(minAll, lo);
+    maxAll = Math.max(maxAll, hi);
+  }
+  return raw.map(r => ({ ...r, minAll, maxAll }));
+}
+
+function formatUpdatedTime(){
+  return new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.";
+}
+
+/* ---------- shared state ---------- */
+let currentProvince = QUICK_PROVINCES[0];
+let pmSortDesc = true;
+let pmQuery = "";
+let pm25Data = null;
+
+/* ---------- view routing ---------- */
+function showView(view){
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById("view-" + view).classList.add("active");
+  window.scrollTo({ top: 0, behavior: "instant" });
+  if (view === "weather") renderWeatherView();
+  if (view === "pm25") renderPM25View();
+  history.replaceState(null, "", "#" + view);
+}
+
+/* ---------- HOME ---------- */
+function renderHomeView(){
+  const w = getBaseWeather(currentProvince);
+  const pm = getPM25Value(currentProvince);
+  const aqi = getAQICategory(pm);
+
+  document.getElementById("heroTemp").innerHTML = `${w.baseTemp}<sup>°C</sup>`;
+  document.getElementById("heroCondIcon").textContent = w.condition.icon;
+  document.getElementById("heroCondText").textContent = w.condition.text;
+  document.getElementById("heroFeels").textContent = `รู้สึกเหมือน ${w.baseTemp + w.feelsOffset}°C`;
+  document.getElementById("chipHumidity").innerHTML = `<b>${w.humidity}%</b> ความชื้น`;
+  document.getElementById("chipWind").innerHTML = `<b>${w.windSpeed} กม./ชม.</b> ลม${w.windDir}`;
+  document.getElementById("chipUv").innerHTML = `UV <b>${w.uv}</b>`;
+  document.getElementById("homeUpdatedAt").textContent = `อัปเดตล่าสุด ${formatUpdatedTime()}`;
+
+  document.getElementById("weatherCardCond").textContent = w.condition.text;
+  document.getElementById("weatherCardSub").textContent = `ความชื้น ${w.humidity}% · ลม ${w.windSpeed} กม./ชม.`;
+
+  document.getElementById("pmCardValue").innerHTML = `${pm}<small>µg/m³</small>`;
+  document.getElementById("pmCardDot").style.background = aqi.color;
+  document.getElementById("pmCardLevel").textContent = aqi.label;
+
+  const heroEl = document.getElementById("hero");
+  heroEl.style.background = (w.condition.icon === "⛈️" || w.condition.icon === "🌦️")
+    ? "linear-gradient(135deg, #5c8fd6 0%, #4fa8e8 55%, #8fc8e8 100%)"
+    : "linear-gradient(135deg, var(--sky-1) 0%, var(--sky-2) 55%, #8fe3d9 100%)";
+}
+
+function initHomePage(){
+  const select = document.getElementById("provinceSelect");
+  QUICK_PROVINCES.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    select.appendChild(opt);
+  });
+  select.value = currentProvince;
+  select.addEventListener("change", () => {
+    currentProvince = select.value;
+    renderHomeView();
+  });
+
+  document.getElementById("weatherLink").addEventListener("click", (e) => { e.preventDefault(); showView("weather"); });
+  document.getElementById("pmLink").addEventListener("click", (e) => { e.preventDefault(); showView("pm25"); });
+
+  renderHomeView();
+}
+
+/* ---------- WEATHER ---------- */
+function renderWeatherView(){
+  document.getElementById("provinceName").textContent = currentProvince;
+
+  const w = getBaseWeather(currentProvince);
+  document.getElementById("bigTemp").innerHTML = `${w.baseTemp}<sup>°C</sup>`;
+  document.getElementById("bigIcon").textContent = w.condition.icon;
+  document.getElementById("bigCond").textContent = w.condition.text;
+  document.getElementById("bigFeels").textContent = `รู้สึกเหมือน ${w.baseTemp + w.feelsOffset}°C`;
+  document.getElementById("weatherUpdatedAt").textContent = `อัปเดตล่าสุด ${formatUpdatedTime()}`;
+
+  const details = [
+    { label: "ความชื้น", value: `${w.humidity}%`, sub: w.humidity > 70 ? "ชื้นสูง" : "ปกติ" },
+    { label: "ลม", value: `${w.windSpeed} กม./ชม.`, sub: `ทิศ${w.windDir}` },
+    { label: "ดัชนี UV", value: `${w.uv}`, sub: w.uv >= 8 ? "สูงมาก ควรกันแดด" : w.uv >= 6 ? "สูง" : "ปานกลาง" },
+    { label: "ความกดอากาศ", value: `${w.pressure} hPa`, sub: "ระดับน้ำทะเล" },
+    { label: "ทัศนวิสัย", value: `${w.visibility} กม.`, sub: w.visibility < 8 ? "มีหมอก/ฝุ่นบดบัง" : "ชัดเจน" },
+    { label: "รู้สึกเหมือน", value: `${w.baseTemp + w.feelsOffset}°C`, sub: "จากความชื้นและลม" }
+  ];
+  document.getElementById("detailGrid").innerHTML = details.map(d => `
+    <div class="detail-card">
+      <div class="detail-card-label">${d.label}</div>
+      <div class="detail-card-value">${d.value}</div>
+      <div class="detail-card-sub">${d.sub}</div>
+    </div>
+  `).join("");
+
+  const hourly = getHourlyForecast(currentProvince);
+  document.getElementById("hourlyScroll").innerHTML = hourly.map((h, i) => `
+    <div class="hour-card">
+      <div class="h-time">${i === 0 ? "ตอนนี้" : (h.hour + ":00")}</div>
+      <div class="h-icon">${h.icon}</div>
+      <div class="h-temp">${h.temp}°</div>
+    </div>
+  `).join("");
+
+  const weekly = getWeeklyForecast(currentProvince);
+  document.getElementById("weekList").innerHTML = weekly.map(d => {
+    const span = d.maxAll - d.minAll || 1;
+    const left = ((d.lo - d.minAll) / span) * 100;
+    const width = ((d.hi - d.lo) / span) * 100;
+    return `
+    <div class="week-row">
+      <div class="week-day">${d.label}<small>${d.sub}</small></div>
+      <div class="week-icon">${d.cond.icon}</div>
+      <div class="week-cond">${d.cond.text}</div>
+      <div class="week-range">
+        <span class="lo">${d.lo}°</span>
+        <span class="week-bar"><i style="left:${left}%; width:${width}%;"></i></span>
+        <span class="hi">${d.hi}°</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------- PM2.5 ---------- */
+function renderPM25View(){
+  if (!pm25Data){
+    pm25Data = PROVINCES.map(p => {
+      const value = getPM25Value(p);
+      return { name: p, value, aqi: getAQICategory(value) };
+    });
+  }
+
+  let rows = pm25Data.filter(r => r.name.includes(pmQuery));
+  rows = rows.slice().sort((a, b) => pmSortDesc ? b.value - a.value : a.value - b.value);
+
+  document.getElementById("resultCount").textContent = pmQuery
+    ? `พบ ${rows.length} จังหวัดที่ตรงกับ "${pmQuery}"`
+    : `แสดงทั้งหมด ${rows.length} จังหวัด`;
+
+  const listEl = document.getElementById("provinceList");
+  if (rows.length === 0){
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <div class="e-icon">🔍</div>
+        <div>ไม่พบจังหวัดที่ค้นหา ลองพิมพ์ชื่ออื่นดูนะ</div>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = rows.map((r, i) => `
+    <div class="province-row">
+      <div class="province-rank">${i + 1}</div>
+      <div class="province-name">${r.name}</div>
+      <div class="province-value">${r.value}<small>µg/m³</small></div>
+      <div class="province-level">
+        <span class="aqi-dot" style="background:${r.aqi.color}"></span>${r.aqi.label}
+      </div>
+    </div>
+  `).join("");
+}
+
+function initPM25Page(){
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    pmQuery = e.target.value.trim();
+    renderPM25View();
+  });
+
+  const sortBtn = document.getElementById("sortBtn");
+  sortBtn.addEventListener("click", () => {
+    pmSortDesc = !pmSortDesc;
+    sortBtn.classList.toggle("asc", !pmSortDesc);
+    sortBtn.querySelector(".sort-label").textContent = pmSortDesc ? "มาก → น้อย" : "น้อย → มาก";
+    renderPM25View();
+  });
+}
+
+/* ---------- back buttons ---------- */
+function initNav(){
+  document.querySelectorAll('[data-nav]').forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      showView(el.getAttribute("data-nav"));
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initHomePage();
+  initPM25Page();
+  initNav();
+
+  const hash = window.location.hash.replace("#", "");
+  if (["weather", "pm25"].includes(hash)) showView(hash);
+});
+</script>
+</body>
+</html>
